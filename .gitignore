@@ -1,0 +1,29 @@
+# Environments
+.venv/
+.venv312/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS / tooling
+.DS_Store
+.claude/
+
+# Raw input data you provide yourself (place in the repo root, see README)
+gtfs_rt_*.csv.gz
+routes.csv
+stops.csv
+stop_times.csv
+transfers.csv
+trips.csv
+service_alerts_2024.parquet
+
+# Generated outputs - directories are kept, contents are not
+data/processed/*
+!data/processed/.gitkeep
+models/*
+!models/.gitkeep
+figures/*
+!figures/.gitkeep
+reports/*
+!reports/.gitkeep

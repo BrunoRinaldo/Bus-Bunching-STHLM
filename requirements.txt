@@ -1,0 +1,12 @@
+# Main pipeline (Python 3.14 was used; ingest -> features -> models -> diagnostics -> tuning)
+duckdb==1.5.5
+pandas==3.0.6
+numpy==2.5.3
+pyarrow==25.0.1
+scikit-learn==1.9.1
+joblib==1.6.0
+matplotlib==3.11.2
+openmeteo_requests==1.7.5
+requests-cache==1.3.3
+retry-requests==2.0.0
+pytz==2026.3.post1

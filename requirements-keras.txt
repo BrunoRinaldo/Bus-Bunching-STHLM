@@ -1,0 +1,10 @@
+# Keras sequence model only (src/sequence_model.py, src/tuning_keras.py).
+# Needs a separate Python 3.12 environment: TensorFlow has no wheel for 3.14.
+tensorflow==2.16.2
+keras==3.15.1
+numpy==1.26.4
+duckdb==1.5.5
+pandas==3.0.6
+pyarrow==25.0.1
+scikit-learn==1.9.1
+joblib==1.6.0

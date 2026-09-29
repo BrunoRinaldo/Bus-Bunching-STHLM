@@ -24,3 +24,11 @@ data/processed/*
 
 # Contains real example rows from the dataset
 reports/data_dictionary.pdf
+
+# Run logs
+logs/
+
+# Smoke-test outputs of the per-horizon tuning
+reports/*_smoke.json
+reports/*.tmp
+models/perk_smoke_*

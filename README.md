@@ -68,6 +68,11 @@ python3 src/tuning_keras.py      # 14. -> reports/tuning_keras.json, models/tune
 
 # main environment (.venv)
 python3 src/compare_tuned.py     # 15. -> figures/fig9_tuned_pr_auc_vs_horizon.png, reports/tuned_results_table.md
+
+# both environments, run from the repo root (~7-8 h, resumable, keeps the Mac awake)
+./run_tuning_per_k.sh            # 16. separate search per horizon k=1,2,3,5,8 for HGB, logreg and Keras
+                                 #     -> reports/tuning_per_k.json, reports/tuning_keras_per_k.json, models/perk_*
+                                 #     (./run_tuning_per_k.sh --smoke checks the pipeline in ~2 min)
 ```
 
 `src/export_encoded_sample.py` is an optional helper that exports a small

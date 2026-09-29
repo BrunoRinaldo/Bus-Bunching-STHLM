@@ -18,12 +18,9 @@ transfers.csv
 trips.csv
 service_alerts_2024.parquet
 
-# Generated outputs - directories are kept, contents are not
+# Processed datasets - derived from the raw data, never committed
 data/processed/*
 !data/processed/.gitkeep
-models/*
-!models/.gitkeep
-figures/*
-!figures/.gitkeep
-reports/*
-!reports/.gitkeep
+
+# Contains real example rows from the dataset
+reports/data_dictionary.pdf

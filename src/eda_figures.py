@@ -264,6 +264,64 @@ def fig7_delay_growth_vs_headway_ratio():
     return d, corr
 
 
+def fig10_bunching_along_route():
+    # relative position along each trip, 0 = first observed stop, 1 = last,
+    # binned into fifths so lines of different lengths are comparable
+    seg = "least(4, floor(5.0*(stop_sequence-first_seq)/nullif(last_seq-first_seq,0)))::INT"
+    where = "WHERE headway_ratio IS NOT NULL AND last_seq > first_seq"
+    per_line = df(f"""
+        SELECT LineNumber, {seg} AS seg, 100.0*avg(is_bunched::INT) AS pct_bunched, count(*) n
+        FROM '{HW}' {where} GROUP BY 1,2 ORDER BY 1,2
+    """)
+    overall = df(f"""
+        SELECT {seg} AS seg, 100.0*avg(is_bunched::INT) AS pct_bunched, count(*) n
+        FROM '{HW}' {where} GROUP BY 1 ORDER BY 1
+    """)
+    x_labels = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"]
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    # individual lines as recessive context, the aggregate is the one series
+    ends = []
+    for line in LINE_ORDER:
+        sub = per_line[per_line.LineNumber == line].sort_values("seg")
+        ax.plot(sub.seg, sub.pct_bunched, color=BASELINE, linewidth=1.2, zorder=2)
+        ends.append([sub.pct_bunched.iloc[-1], line])
+    # nudge route-end labels apart so lines ending close together stay legible
+    ends.sort()
+    for i in range(1, len(ends)):
+        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.2)
+    for y, line in ends:
+        ax.text(4.1, y, line, va="center", fontsize=8, color=INK_MUTED)
+    ax.plot(overall.seg, overall.pct_bunched, color=BLUE, linewidth=2.5, zorder=3,
+            marker="o", markersize=8, markeredgecolor=SURFACE, markeredgewidth=2)
+    for _, r in overall.iterrows():
+        ax.annotate(f"{r.pct_bunched:.1f}%", (r.seg, r.pct_bunched),
+                    xytext=(0, 10), textcoords="offset points", ha="center",
+                    fontsize=9, color=INK)
+    ax.annotate("All lines", (overall.seg.iloc[0], overall.pct_bunched.iloc[0]),
+                xytext=(-10, 0), textcoords="offset points", ha="right", va="center",
+                fontsize=9, color=INK_SECONDARY)
+
+    ax.set_xticks(range(5))
+    ax.set_xticklabels(x_labels)
+    ax.set_xlim(-0.4, 4.4)
+    ax.set_ylim(0, per_line.pct_bunched.max() * 1.1)
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    ax.set_xlabel("position along the trip (share of stops travelled)", fontsize=9)
+    ax.set_ylabel("share of arrivals bunched (|headway ratio| < 0.25)", fontsize=9)
+    ax.grid(axis="x", visible=False)
+    first, last = overall.pct_bunched.iloc[0], overall.pct_bunched.iloc[-1]
+    fig.suptitle(f"Bunching risk grows along the route: {first:.1f}% → {last:.1f}% ({last/first:.1f}×)",
+                 fontsize=13, color=INK, x=0.02, y=0.98, ha="left")
+    ax.set_title("All lines pooled (blue); individual lines in grey, labelled at route end",
+                 fontsize=9, color=INK_SECONDARY, loc="left")
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.88)
+    fig.savefig("figures/fig10_bunching_along_route.png", dpi=200)
+    plt.close(fig)
+    return per_line, overall
+
+
 if __name__ == "__main__":
     import os
     os.makedirs("figures", exist_ok=True)
@@ -274,6 +332,7 @@ if __name__ == "__main__":
     print("fig5"); d5 = fig5_headway_ratio_distribution()
     print("fig6"); d6, means6 = fig6_dwell_by_stop_type()
     print("fig7"); d7, corr7 = fig7_delay_growth_vs_headway_ratio()
+    print("fig10"); d10 = fig10_bunching_along_route()
     print("done")
     print("fig1 cv range:", d1.cv.min(), d1.cv.max())
     print("fig3 by month:\n", d3)

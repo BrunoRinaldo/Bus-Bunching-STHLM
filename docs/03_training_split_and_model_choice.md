@@ -4,7 +4,9 @@ This document covers how `data/processed/model_dataset.parquet` is split for
 training and evaluation, why that split is structured the way it is, and the
 four models called for by the plan - all four have now been trained and
 evaluated; §5 has the full results, the headline figure, and two findings
-that contradict what the plan expected going in.
+that contradict what the plan expected going in. §6 covers hyperparameter tuning:
+a search at k=3 reused at every horizon, then a separate search per
+horizon, with a paired bootstrap comparing the two.
 
 ---
 
@@ -218,7 +220,7 @@ table). Full numbers: `reports/results_tables.md`.
 
 **All numbers in this section use the original default settings** (and, for
 logistic regression, the original feature set). Hyperparameter tuning and a
-PCA / engineered-feature study were run afterwards - see
+PCA / engineered-feature study were run afterwards - see §6,
 `reports/tuning_results.md` and `figures/fig9_tuned_pr_auc_vs_horizon.png`.
 After tuning, gradient boosting leads at every horizon (test PR-AUC 0.958 /
 0.905 / 0.856 / 0.762 / 0.652 at k = 1 / 2 / 3 / 5 / 8), including k=1 where
@@ -343,3 +345,203 @@ a design choice; `pip install tensorflow` / `jax` / `torch` all failed with
 "no matching distribution" under 3.14. `src/sequence_data.py` builds the
 shared sequence table (`data/processed/sequence_dataset.parquet`) once;
 `src/sequence_model.py` trains all 5 horizons from it.
+
+---
+
+## 6. Hyperparameter tuning
+
+The models in §5 use default settings. Tuning was done in two rounds:
+first a search at k=3 whose winners were reused at every horizon (§6.2),
+then a separate search at each horizon (§6.3). A paired bootstrap on the
+test split measures what the per-horizon search adds over the k=3 search
+(§6.4).
+
+### 6.1 Protocol (both rounds)
+
+- **Search** on an 800,000-row random subsample of `train` (Jan-Sep),
+  class weights as in §1.3, no resampling.
+- **Selection** on the full `val` split (Oct) by PR-AUC.
+- **Refit** of the selected configuration on the full `train` split; `val`
+  and `test` (Nov-Dec) are scored once, for the refit model only. `test` is
+  never used for a decision.
+- HGB uses early stopping on an internal 10% of the training data
+  (`n_iter_no_change=15`), `random_state=0`, so HGB refits are
+  deterministic. Keras uses early stopping on `val` PR-AUC and is seeded per
+  horizon and trial.
+
+### 6.2 Round 1: tuned at k=3, reused at k=1, 2, 5, 8
+
+Code `src/tuning.py`, `src/tuning_keras.py`, `src/compare_tuned.py`;
+full write-up `reports/tuning_results.md`; figure
+`figures/fig9_tuned_pr_auc_vs_horizon.png`.
+
+| Model | Search at k=3 | Selected configuration |
+|---|---|---|
+| HGB | default + 12 random configurations. Space: learning rate {0.03, 0.05, 0.1, 0.2}, max leaf nodes {15, 31, 63, 127, 255}, min samples per leaf {20, 50, 100, 300, 1000}, L2 {0, 0.1, 1, 10}, max depth {none, 6, 10} | learning rate 0.2, 255 leaves, min leaf 20, L2 10, no depth limit |
+| Logistic regression | C in {0.01, 0.1, 1, 10}, PCA 5-60 components, original vs. engineered features (`abs(headway_ratio)`, its lags, near-zero flags, `abs(closing_speed_3)`) | engineered features, PCA 45 components, C = 0.1 |
+| Keras | default + 9 random configurations. Space: CNN/LSTM, 1-3 conv layers, 16/32/64 filters, kernel 2/3, pooling {average, flatten, last step}, dense 16/32/64, dropout 0.1/0.2/0.4, learning rate {3e-4, 1e-3, 3e-3}, batch {2048, 4096, 8192} | 3 causal conv layers, 64 filters, kernel 3, last-step pooling, dense 32, dropout 0.4, lr 1e-3, batch 2048 |
+
+Test PR-AUC, default settings (§5) -> round 1:
+
+| k | min | HGB | Keras | LogReg |
+|---|---|---|---|---|
+| 1 | 1.05 | 0.898 -> **0.958** | 0.917 -> 0.932 | 0.586 -> 0.859 |
+| 2 | 2.10 | 0.860 -> **0.905** | 0.855 -> 0.862 | 0.563 -> 0.785 |
+| 3 | 3.15 | 0.814 -> **0.856** | 0.786 -> 0.815 | 0.539 -> 0.721 |
+| 5 | 5.25 | 0.696 -> **0.762** | 0.682 -> 0.709 | 0.493 -> 0.612 |
+| 8 | 8.40 | 0.623 -> **0.652** | 0.562 -> 0.579 | 0.425 -> 0.488 |
+
+Tuned HGB is the best model at every horizon, including k=1 where the
+default Keras model had been ahead. For logistic regression, C and PCA
+changed almost nothing; the engineered `abs(...)` features gave the gain
+(0.539 -> 0.707 at k=3, 0.721 with PCA 45 on top), see §5.2.
+
+### 6.3 Round 2: a separate search at each horizon
+
+Code `src/tuning_per_k.py` (HGB, logistic regression),
+`src/tuning_keras_per_k.py` (Keras, `.venv312`), `run_tuning_per_k.sh`
+(runs both, resumable). Raw logs `reports/tuning_per_k.json`,
+`reports/tuning_keras_per_k.json`. Models `models/perk_hgb_k{k}.joblib`,
+`models/perk_logreg_k{k}.joblib`, `models/perk_sequence_k{k}.keras`.
+Figures, table and curves `src/perk_curves.py`, `src/compare_perk.py`,
+`reports/perk_results_table.md`. Total run time 9.1 h (HGB + logistic
+regression 6.2 h, Keras 2.9 h).
+
+Search per horizon, same spaces as §6.2:
+
+- **HGB**, 20-23 trials: default, the round-1 winner, 14 random
+  configurations, then up to 8 neighbours of the best random-round result
+  (one parameter moved one grid step). `max_iter` 800.
+- **Logistic regression**, 12 trials on the engineered features: C in
+  {0.01, 0.1, 1, 10} without PCA, plus PCA {20, 30, 45, 60} x C {0.1, 1}.
+- **Keras**, 14 trials: default, the round-1 winner, 12 random
+  configurations. Search 10 epochs (patience 2), refit 15 epochs
+  (patience 3).
+
+Selected configurations:
+
+| k | HGB | Keras | LogReg |
+|---|---|---|---|
+| 1 | lr 0.2, 255 leaves, min leaf 50, L2 10, no depth limit (60 iter) | CNN 3x64, kernel 3, flatten, dense 32, dropout 0.1, lr 3e-4, batch 2048 | no PCA, C 0.01 |
+| 2 | = round-1 winner (62 iter) | CNN 3x64, kernel 2, last step, dense 16, dropout 0.2, lr 1e-3, batch 4096 | no PCA, C 0.01 |
+| 3 | lr 0.2, 255 leaves, min leaf 300, L2 0.1, depth 10 (70 iter) | = round-1 winner | = round-1 winner (PCA 45, C 0.1) |
+| 5 | **lr 0.03**, 255 leaves, min leaf 100, L2 1, **depth 10 (653 iter)** | CNN 1x64, kernel 2, flatten, dense 64, dropout 0.4, lr 1e-3, batch 2048 | no PCA, C 0.01 |
+| 8 | **lr 0.03**, 255 leaves, min leaf 100, L2 0, **depth 10 (661 iter)** | = round-1 winner | no PCA, C 1 |
+
+At k=5 and k=8 the HGB search selects a different kind of model from the
+short horizons: learning rate 0.03 instead of 0.2, depth limited to 10,
+about 650 boosting iterations instead of about 60. Refitting these two
+models on the full training split took 1.8 h and 2.4 h.
+
+Test results (`figures/fig11_perk_pr_auc_vs_horizon.png`,
+`figures/fig12_perk_recall_at_p80.png`):
+
+| k | min | HGB PR-AUC | HGB R@P80 | Keras PR-AUC | Keras R@P80 | LogReg PR-AUC | LogReg R@P80 |
+|---|---|---|---|---|---|---|---|
+| 1 | 1.05 | **0.958** | 0.963 | 0.922 | 0.926 | 0.846 | 0.896 |
+| 2 | 2.10 | **0.905** | 0.879 | 0.870 | 0.847 | 0.774 | 0.777 |
+| 3 | 3.15 | **0.853** | 0.786 | 0.812 | 0.736 | 0.721 | 0.626 |
+| 5 | 5.25 | **0.767** | 0.602 | 0.677 | 0.350 | 0.608 | not reached |
+| 8 | 8.40 | **0.659** | 0.359 | 0.579 | 0.138 | 0.489 | not reached |
+
+R@P80 = recall at precision >= 0.80. "Not reached" means no threshold gives
+precision 0.80. HGB remains the best model at every horizon.
+`figures/fig13_perk_tuning_spread.png` shows every search trial on the
+validation split. Tuning gains over the default settings are largest for
+Keras (+0.11 to +0.17 validation PR-AUC on the search subsample) and
++0.014 to +0.037 for HGB.
+
+### 6.4 Per-horizon vs. k=3 search: paired bootstrap
+
+Code `src/bootstrap_perk.py`; results `reports/perk_bootstrap.json`,
+`reports/perk_results_table.md`; figure
+`figures/fig17_perk_bootstrap_diff.png`.
+
+Both models score the same test rows. The round-1 comparison models are
+refit exactly as in `tuning.py` stage 2 (asserted: same test PR-AUC as
+reported in §6.2). The 61 test days are resampled with replacement
+(B = 1000), because rows from the same day share weather, disruptions and
+traffic. The interval is the 2.5-97.5 percentile of the difference.
+
+Difference, per-horizon tuned minus round 1 (test split):
+
+| Model | k | PR-AUC diff | 95% CI | R@P80 diff | 95% CI |
+|---|---|---|---|---|---|
+| HGB | 1 | +0.0004 | [0.0000, +0.0009] | +0.0008 | [-0.0002, +0.0017] |
+| HGB | 2 | 0 (same model) | - | 0 | - |
+| HGB | 3 | -0.0028 | [-0.0042, -0.0014] | -0.0029 | [-0.0067, +0.0009] |
+| HGB | **5** | **+0.0056** | **[+0.0032, +0.0079]** | **+0.0157** | **[+0.0029, +0.0232]** |
+| HGB | **8** | **+0.0071** | **[+0.0039, +0.0102]** | **+0.0164** | **[+0.0031, +0.0318]** |
+| Keras | 1 | -0.0097 | [-0.0131, -0.0067] | -0.0059 | [-0.0085, -0.0035] |
+| Keras | 2 | +0.0081 | [+0.0050, +0.0111] | +0.0052 | [+0.0012, +0.0089] |
+| Keras | 3 | -0.0031 | [-0.0050, -0.0011] | -0.0041 | [-0.0099, +0.0012] |
+| Keras | 5 | -0.0322 | [-0.0377, -0.0269] | -0.1120 | [-0.4266, -0.0635] |
+| Keras | 8 | +0.0004 | [-0.0031, +0.0037] | +0.0458 | [-0.0343, +0.0799] |
+| LogReg | 1 | -0.0136 | [-0.0178, -0.0103] | +0.0154 | [+0.0119, +0.0197] |
+| LogReg | 2 | -0.0114 | [-0.0168, -0.0068] | +0.0108 | [+0.0038, +0.0163] |
+| LogReg | 3 | 0 (same model) | - | 0 | - |
+| LogReg | 5 | -0.0048 | [-0.0106, +0.0003] | 0 (P 0.80 not reached) | - |
+| LogReg | 8 | +0.0009 | [-0.0042, +0.0060] | 0 (P 0.80 not reached) | - |
+
+Findings:
+
+- **HGB at k=5 and k=8: per-horizon tuning is better.** PR-AUC +0.006 and
+  +0.007, recall at 80% precision +1.6 percentage points at both horizons.
+  All four intervals exclude zero, and the validation split moved in the
+  same direction (+0.007 and +0.009). These are the horizons with the
+  longest lead time for a controller to act.
+- **HGB at k=1-3: no gain.** k=2 selected the round-1 configuration. k=1 is
+  +0.0004. At k=3 the per-horizon winner is 0.003 lower on test; it was
+  0.002 higher on the validation subsample (0.833 vs. 0.831), so this is a
+  selection that did not carry over to Nov-Dec.
+- **Keras: mixed.** Better at k=2, worse at k=1, 3 and 5, no difference at
+  k=8. At k=3 and k=8 both searches selected the same configuration, so
+  those two differences come only from the training seed (-0.003 and
+  +0.0004 PR-AUC). At k=5 the
+  per-horizon winner was 0.006 ahead of the round-1 configuration on the
+  validation subsample but is 0.028 behind it on the full validation split
+  after refit (0.648 vs. 0.675, -0.027) and 0.032 behind on test. Selecting Keras
+  configurations on a 10-epoch subsample run did not predict the full
+  refit at this horizon.
+- **Logistic regression: the per-horizon search picked no PCA and C 0.01 at
+  k=1-2.** That trades PR-AUC (-0.014 / -0.011) for recall at 80% precision
+  (+0.015 / +0.011).
+- The bootstrap intervals cover variation across test days for fixed
+  models. They do not cover training randomness. For HGB this is zero
+  (deterministic refit). For Keras it is of the order of 0.003 PR-AUC (k=3 and k=8 above).
+
+**Best HGB model per horizon on test:** per-horizon models at k=5 and k=8
+(`models/perk_hgb_k5.joblib`, `perk_hgb_k8.joblib`); the round-1
+configuration at k=3 (`models/tuned_hgb_k3.joblib`); the two are identical
+at k=2 and within 0.0004 at k=1.
+
+### 6.5 Further test-split diagnostics of the per-horizon models
+
+- **Precision-recall curves**
+  (`figures/fig14_perk_pr_curves.png`, k=1, 3, 8). At k=8 HGB holds
+  precision 0.80 up to recall 0.36; Keras drops below 0.80 at recall 0.14.
+  Logistic regression's precision never exceeds 0.92 at k=1, 0.84 at k=3
+  and 0.63 at k=8, even at the lowest recall: its highest-scored rows are
+  not more precise than the next ones.
+- **Calibration** (`figures/fig15_perk_calibration.png`, 10 bins). All
+  three models were trained with balanced class weights, and their scores
+  sit well above the observed rate: in the 0.8-0.9 score bin the observed
+  bunching rate is 0.08-0.17 (Keras, HGB) and 0.27-0.31 (logistic
+  regression). Scores rank rows correctly (PR-AUC above) but
+  are not probabilities. Use in operation needs recalibration (e.g.
+  isotonic on `val`) or a threshold chosen on precision/recall directly.
+- **Per line** (`figures/fig16_perk_pr_auc_by_line.png`, HGB). Line 116 is
+  best at every horizon (0.99 at k=1, 0.81 at k=8). Line 474 is weakest,
+  and its gap grows with horizon: 0.91 at k=1, 0.55 at k=5, 0.38 at k=8.
+  Line 179 is second weakest at k=5-8 (0.69, 0.57). This matches the Phase 6
+  finding for line 474 with the default model
+  (`reports/phase6_diagnostics.md`).
+
+### 6.6 Limitations
+
+- Validation (Oct) contains no cold-weather rows (§1.1); all selections
+  were made without cold weather.
+- Searches are 12-23 configurations per model and horizon, on an 800k-row
+  subsample.
+- The Phase 6 diagnostics (`reports/phase6_diagnostics.md`) use the
+  default HGB model and have not been re-run with the tuned models.

@@ -5,8 +5,11 @@ models), reports/tuning_stage1.json (k=3), tuning_stage2.json (other
 horizons, HGB + logreg) and tuning_keras.json. Writes
 figures/fig9_tuned_pr_auc_vs_horizon.png and reports/tuned_results_table.md.
 Solid lines = tuned, dashed = original, same colour per model family.
+Stars = best gradient boosting at k=5 and k=8 (reports/tuning_long_k.json,
+docs/03 §6.6), when that file exists.
 """
 import json
+import os
 
 import matplotlib
 matplotlib.use("Agg")
@@ -48,12 +51,22 @@ for k in HZ:
     })
 
 fig, ax = plt.subplots(figsize=(8.5, 5.2))
-x = [r["min"] for r in rows]
+x = [int(r["k"]) for r in rows]
 for key, col, name in [("hgb", BLUE, "gradient boosting"), ("keras", AQUA, "Keras CNN"), ("lr", ORANGE, "logistic regression")]:
     ax.plot(x, [r[f"{key}_orig"] for r in rows], color=col, linestyle="--", linewidth=1.3, alpha=0.7, marker="o", markersize=3)
     ax.plot(x, [r[f"{key}_tuned"] for r in rows], color=col, linewidth=2.2, marker="o", markersize=5, label=f"{name} (tuned)")
+if os.path.exists("reports/tuning_long_k.json"):
+    lk = json.load(open("reports/tuning_long_k.json"))
+    best = {k[1:]: v["test"]["pr_auc"] for k, v in lk.items() if "test" in v}
+    ks = [k for k in HZ if k in best]
+    ax.scatter([int(k) for k in ks], [best[k] for k in ks], marker="*", s=240, color=BLUE, edgecolors=SURF,
+               linewidths=1.2, zorder=6, label="gradient boosting, best (long-horizon search)")
+    for k in ks:
+        ax.annotate(f"{best[k]:.2f}", (int(k), best[k]), xytext=(0, 10), textcoords="offset points",
+                    ha="center", fontsize=9, color=INK2)
 ax.plot([], [], color=MUTED, linestyle="--", label="same model, original settings")
-ax.set_xlabel("prediction horizon (minutes, median 63s inter-stop running time)")
+ax.set_xlabel("prediction horizon k (stops ahead)")
+ax.set_xticks([int(k) for k in HZ])
 ax.set_ylabel("PR-AUC (test split, Nov-Dec)")
 ax.set_ylim(0.3, 1.0)
 ax.legend(frameon=False, fontsize=9, loc="upper right")

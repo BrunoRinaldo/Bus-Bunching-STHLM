@@ -87,16 +87,17 @@ def main():
         })
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    minutes = [r["minutes"] for r in rows]
+    minutes = HORIZONS  # x-axis in stops ahead
     ax.plot(minutes, [r["logreg_pr_auc"] for r in rows], color=ORANGE, marker="o", label="logistic regression", linewidth=2)
     ax.plot(minutes, [r["hgb_pr_auc"] for r in rows], color=BLUE, marker="o", label="gradient boosting", linewidth=2)
     ax.plot(minutes, [r["keras_pr_auc"] for r in rows], color=AQUA, marker="o", label="Keras 1D-CNN", linewidth=2)
     ax.scatter(minutes, [r["persistence_precision"] for r in rows], color=INK_MUTED, marker="x", s=60,
                label="persistence baseline (precision, not PR-AUC)", zorder=5)
-    ax.set_xlabel("prediction horizon (minutes, via median 63s inter-stop running time)")
+    ax.set_xlabel("prediction horizon k (stops ahead)")
+    ax.set_xticks(HORIZONS)
     ax.set_ylabel("PR-AUC (test split, Nov-Dec)")
     ax.set_ylim(0, 1)
-    ax.legend(frameon=False, fontsize=9, loc="upper right")
+    ax.legend(frameon=False, fontsize=9, loc="lower left")
     fig.suptitle("Bunching prediction: PR-AUC vs. horizon, all models", fontsize=13, color=INK, x=0.02, ha="left")
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig("figures/fig8_pr_auc_vs_horizon.png", dpi=200)

@@ -6,7 +6,8 @@ four models called for by the plan - all four have now been trained and
 evaluated; §5 has the full results, the headline figure, and two findings
 that contradict what the plan expected going in. §6 covers hyperparameter tuning:
 a search at k=3 reused at every horizon, then a separate search per
-horizon, with a paired bootstrap comparing the two.
+horizon, with a paired bootstrap comparing the two, and a final round of
+features and search for k=5 and k=8.
 
 ---
 
@@ -510,10 +511,11 @@ Findings:
   models. They do not cover training randomness. For HGB this is zero
   (deterministic refit). For Keras it is of the order of 0.003 PR-AUC (k=3 and k=8 above).
 
-**Best HGB model per horizon on test:** per-horizon models at k=5 and k=8
-(`models/perk_hgb_k5.joblib`, `perk_hgb_k8.joblib`); the round-1
-configuration at k=3 (`models/tuned_hgb_k3.joblib`); the two are identical
-at k=2 and within 0.0004 at k=1.
+**Best HGB model per horizon on test (of rounds 1-2):** per-horizon models
+at k=5 and k=8 (`models/perk_hgb_k5.joblib`, `perk_hgb_k8.joblib`); the
+round-1 configuration at k=3 (`models/tuned_hgb_k3.joblib`); the two are
+identical at k=2 and within 0.0004 at k=1. k=5 and k=8 are improved
+further in §6.6.
 
 ### 6.5 Further test-split diagnostics of the per-horizon models
 
@@ -537,7 +539,82 @@ at k=2 and within 0.0004 at k=1.
   finding for line 474 with the default model
   (`reports/phase6_diagnostics.md`).
 
-### 6.6 Limitations
+### 6.6 Long horizons (k=5, 8): features and a second HGB search
+
+The per-horizon search (§6.3-6.4) was followed by a second round for the
+two longest horizons only. Code `src/extra_features.py`,
+`src/feature_screen.py`, `src/tuning_long_k.py`; results
+`reports/feature_screen.json`, `reports/tuning_long_k.json`; models
+`models/long_hgb_k5.joblib`, `models/long_hgb_k8.joblib` (dict with the
+classifier and its feature list). Run time 1.8 h for both horizons.
+
+**New candidate features** (`data/processed/extra_features.parquet`,
+joined on `(date, trip_id, stop_sequence)`; `model_dataset.parquet` is
+unchanged). Each uses only stop n and earlier, the timetable, or per-stop
+statistics from the training months:
+
+| Group | Columns |
+|---|---|
+| long_lags | `headway_ratio` lag 5 and 8, closing speed over 8 stops, delay growth summed over 8 stops, dwell summed over 3 and 5 stops |
+| schedule | scheduled headway (s), scheduled running time from stop n to n+5 and n+8 |
+| leader | the leader's headway ratio and speed at stop n, when the leader reached stop n first |
+| ahead | summed training-month median dwell and number of interchanges over the next 5 / 8 stops |
+
+Every target row has consecutive stop sequences up to n+k (0.00% gaps), so
+the scheduled running time to n+k is pure timetable information.
+
+**Feature screen** (fixed HGB configuration per k, same 800k subsample,
+early stopping on `val`, validation PR-AUC):
+
+| Feature set | k=5 | k=8 |
+|---|---|---|
+| current features | 0.7354 | 0.6104 |
+| without `month_of_year` | 0.7357 | 0.6112 |
+| + long_lags | 0.7335 | 0.6107 |
+| + schedule | 0.7381 | 0.6235 |
+| + leader | 0.7348 | 0.6106 |
+| + ahead | 0.7370 | 0.6130 |
+| + all four groups | 0.7390 | **0.6262** |
+
+At k=8 the new features add +0.016, most of it from the schedule group
+(+0.013). At k=5 the best set adds +0.004; the rule for this round was a
+minimum gain of 0.005, so k=5 keeps the current features.
+
+**Second HGB search**, per horizon: the §6.3 winner plus 16 random
+configurations on a 2M-row subsample, space extended past the edge of the
+§6.3 winners (learning rate {0.02, 0.03, 0.05}, leaves {127, 255, 511,
+1023}, min leaf {50, 100, 200, 500}, L2 {0, 1, 10}, depth {8, 10, 12,
+none}, `max_features` {0.5, 0.8, 1.0}). Early stopping on `val` (Oct)
+instead of a random 10% of training rows. The top 3 are refit on the full
+training split and the choice is made on the refits. Early stopping and
+selection both use `val`, so validation scores are optimistic; test is
+scored once.
+
+| k | Features | Selected | Iterations | Val PR-AUC |
+|---|---|---|---|---|
+| 5 | current (37) | lr 0.02, 1023 leaves, min leaf 100, L2 0, depth 12, all features per split | 326 | 0.759 |
+| 8 | current - month + all groups (51) | lr 0.03, 511 leaves, min leaf 50, L2 1, depth 10, 80% features per split | 268 | 0.650 |
+
+Test split, against the per-horizon HGB of §6.3 (paired day-block
+bootstrap, 61 days, B = 1000):
+
+| k | Test PR-AUC | Diff | 95% CI | Recall at P 0.80 | Diff | 95% CI |
+|---|---|---|---|---|---|---|
+| 5 | 0.767 -> **0.776** | +0.0087 | [+0.0066, +0.0107] | 0.602 -> 0.608 | +0.0064 | [-0.0014, +0.0165] |
+| 8 | 0.659 -> **0.682** | +0.0236 | [+0.0193, +0.0277] | 0.359 -> **0.387** | +0.0272 | [+0.0088, +0.0422] |
+
+Against the default model of §5 this is +0.080 at k=5 (0.696 -> 0.776) and
++0.059 at k=8 (0.623 -> 0.682). At k=8, the new features gave +0.016
+validation PR-AUC in the screen at a fixed configuration; at k=5 the
+features are unchanged, so the gain there comes from the search itself
+(early stopping on `val`, larger subsample, wider space, choice on full
+refits).
+
+Tested, not worth it: a weighted average of the HGB and Keras scores
+(+0.001 test PR-AUC at k=8, weight 1.0 = HGB alone at k=5;
+`src/ensemble_perk.py`); the new features at k=5 (+0.004 validation).
+
+### 6.7 Limitations
 
 - Validation (Oct) contains no cold-weather rows (§1.1); all selections
   were made without cold weather.

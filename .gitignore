@@ -32,3 +32,5 @@ logs/
 reports/*_smoke.json
 reports/*.tmp
 models/perk_smoke_*
+models/long_smoke_*
+models/long_hgb_k*_*.joblib

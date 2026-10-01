@@ -10,7 +10,10 @@ scored once, using the same model unless a section says otherwise. Code:
 **Note added after the tuning work**: this whole report was computed with the
 original, untuned gradient boosting model. Tuning (`reports/tuning_results.md`)
 raised k=3 test PR-AUC from 0.814 to 0.856; these diagnostics were not re-run
-on the tuned model.
+on the tuned model. **They have since been re-run on the tuned models at k=3
+and k=5: see `reports/diagnostics_tuned.md`.** Three conclusions below change
+there: the tuned model shows a transfer loss to unseen lines (§4), peak hours
+score lower than off-peak (§1), and delay + dwell beats delay alone (§2).
 
 As a sanity check, the full model re-evaluated here scores PR-AUC 0.8136 -
 matches doc 3 §5's reported 0.814 for HGB at k=3 to within rounding, so the

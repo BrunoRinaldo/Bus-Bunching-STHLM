@@ -20,6 +20,13 @@ Selected configurations:
 | 5 | nb3 | rs4 (cnn) | n_pca=None, C=0.01 |
 | 8 | nb2 | k3_winner (cnn) | n_pca=None, C=1.0 |
 
+Long-horizon HGB search (src/tuning_long_k.py, docs/03 §6.6), test split, vs. the per-k HGB above (paired day-block bootstrap):
+
+| k | PR-AUC | diff | 95% CI | R@P80 | diff | 95% CI |
+|---|---|---|---|---|---|---|
+| 5 | **0.7761** | +0.0087 | [+0.0066, +0.0107] | 0.608 | +0.0064 | [-0.0014, +0.0165] |
+| 8 | **0.6821** | +0.0236 | [+0.0193, +0.0277] | 0.387 | +0.0272 | [+0.0088, +0.0422] |
+
 Paired day-block bootstrap, per-k tuned minus k=3-tuned (test split, 61 days, B = 1000, src/bootstrap_perk.py). CI = 2.5-97.5 percentile.
 
 | model | k | PR-AUC diff | 95% CI | R@P80 diff | 95% CI |

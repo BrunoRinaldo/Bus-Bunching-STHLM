@@ -44,6 +44,8 @@ s2 = json.load(open("reports/tuning_stage2.json"))
 kt = json.load(open("reports/tuning_keras.json"))
 CURVE_KEY = {"hgb": "hgb", "keras": "keras", "lr": "logreg"}
 bs = json.load(open("reports/perk_bootstrap.json")) if os.path.exists("reports/perk_bootstrap.json") else {}
+lk = json.load(open("reports/tuning_long_k.json")) if os.path.exists("reports/tuning_long_k.json") else {}
+LONG = {k[1:]: v["test"] for k, v in lk.items() if "test" in v}  # step-2 search, k=5 and 8 only
 
 
 def k3_tuned(k):
@@ -68,7 +70,7 @@ for k in HZ:
     })
 for r in rows:  # NaN / None both mean precision 0.80 is never reached
     r["r80"] = {m: (None if v is None or v != v else v) for m, v in r["r80"].items()}
-x = [r["min"] for r in rows]
+x = [int(r["k"]) for r in rows]
 persist = persistence_baseline()
 
 
@@ -92,13 +94,21 @@ for key, col, name in MODELS:
             label=f"{name} (tuned per horizon)")
     ax.annotate(f"{rows[-1]['auc'][key]:.2f}", (x[-1], rows[-1]["auc"][key]), xytext=(8, 0),
                 textcoords="offset points", va="center", fontsize=9, color=INK2)
+if LONG:
+    ks = [k for k in HZ if k in LONG]
+    ax.scatter([int(k) for k in ks], [LONG[k]["pr_auc"] for k in ks], marker="*", s=220, color=BLUE,
+               edgecolors=SURF, linewidths=1.2, zorder=6, label="gradient boosting, long-horizon search (docs/03 §6.6)")
+    for k in ks:
+        ax.annotate(f"{LONG[k]['pr_auc']:.2f}", (int(k), LONG[k]["pr_auc"]), xytext=(0, 10),
+                    textcoords="offset points", ha="center", fontsize=9, color=INK2)
 ax.scatter(x, [persist[int(k)]["precision"] for k in HZ], color=MUTED, marker="x", s=50, zorder=5,
            label="persistence baseline (precision, not PR-AUC)")
 ax.plot([], [], color=MUTED, linestyle="--", label="tuned at k=3 only (fig 9)")
-ax.set_xlabel("prediction horizon (minutes, median 63s inter-stop running time)")
+ax.set_xlabel("prediction horizon k (stops ahead)")
+ax.set_xticks([int(k) for k in HZ])
 ax.set_ylabel("PR-AUC (test split, Nov-Dec)")
 ax.set_ylim(0.3, 1.0)
-ax.set_xlim(0.5, 9.3)
+ax.set_xlim(0.5, 9.0)
 ax.legend(frameon=False, fontsize=9, loc="lower left")
 title(fig, "Per-horizon tuning, PR-AUC by horizon")
 fig.tight_layout(rect=[0, 0, 1, 0.94])
@@ -117,7 +127,7 @@ for j, (key, col, name) in enumerate(MODELS):
             ax.text(p, 0.015, "not\nreached", ha="center", va="bottom", fontsize=7, color=MUTED)
         else:
             ax.text(p, v + 0.012, f"{v:.2f}", ha="center", va="bottom", fontsize=8, color=INK2)
-ax.set_xticks(xi, [f"k={r['k']}\n{r['min']} min" for r in rows])
+ax.set_xticks(xi, [f"k={r['k']}" for r in rows])
 ax.set_ylabel("recall at precision >= 0.80 (test split)")
 ax.set_ylim(0, 1.08)
 ax.grid(axis="x", visible=False)
@@ -165,7 +175,7 @@ for ax, k in zip(axes, ["1", "3", "8"]):
     ax.axhline(br, color=MUTED, linewidth=1, linestyle=":")
     ax.text(0.02, br + 0.015, f"base rate {br:.2f}", fontsize=8, color=MUTED)
     ax.axhline(0.8, color=BASE, linewidth=1, linestyle="--")
-    ax.set_title(f"k={k} stops (~{MIN[k]:.0f} min ahead)", fontsize=10, color=INK2, loc="left")
+    ax.set_title(f"k={k} stops ahead", fontsize=10, color=INK2, loc="left")
     ax.set_xlabel("recall")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1.02)
@@ -263,6 +273,14 @@ with open("reports/perk_results_table.md", "w") as f:
     f.write("\nSelected configurations:\n\n| k | HGB | Keras | LogReg |\n|---|---|---|---|\n")
     for r in rows:
         f.write(f"| {r['k']} | {r['cfg']['hgb']} | {r['cfg']['keras']} | {r['cfg']['lr']} |\n")
+    if LONG:
+        f.write("\nLong-horizon HGB search (src/tuning_long_k.py, docs/03 §6.6), test split, vs. the per-k HGB "
+                "above (paired day-block bootstrap):\n\n| k | PR-AUC | diff | 95% CI | R@P80 | diff | 95% CI |\n"
+                "|---|---|---|---|---|---|---|\n")
+        for k in [k for k in HZ if k in LONG]:
+            b = LONG[k]["vs_perk_hgb"]
+            f.write(f"| {k} | **{b['pr_auc_new']}** | {b['diff']:+.4f} | [{b['ci95'][0]:+.4f}, {b['ci95'][1]:+.4f}] | "
+                    f"{b['r80_new']:.3f} | {b['r80_diff']:+.4f} | [{b['r80_ci95'][0]:+.4f}, {b['r80_ci95'][1]:+.4f}] |\n")
     if bs:
         f.write("\nPaired day-block bootstrap, per-k tuned minus k=3-tuned (test split, 61 days, B = 1000, "
                 "src/bootstrap_perk.py). CI = 2.5-97.5 percentile.\n\n"

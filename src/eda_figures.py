@@ -322,6 +322,101 @@ def fig10_bunching_along_route():
     return per_line, overall
 
 
+def fig19_cv_growth_along_route():
+    """Report figure for 'Does irregularity grow along the route?'.
+
+    One panel per line, grouped by what the paragraph says about it (rising,
+    flat, step / artifact), plus a pooled panel comparing the drift with and
+    without lines 4 and 179. Same CV definition as fig 1.
+    """
+    per_stop = df(f"""
+        SELECT LineNumber, stop_sequence,
+            stddev(headway_obs)/avg(headway_obs) AS cv, count(*) n
+        FROM '{HW}'
+        WHERE headway_obs > 0 AND headway_obs < 3600
+        GROUP BY 1,2 HAVING count(*) >= 30
+    """)
+    # pooled: CV per line within each tenth of the trip, then averaged across
+    # lines with equal weight (pooling raw headways would mix different mean
+    # headways and inflate CV)
+    pooled = df(f"""
+        WITH b AS (
+            SELECT LineNumber, headway_obs,
+                least(9, floor(10.0*(stop_sequence-first_seq)/nullif(last_seq-first_seq,0)))::INT AS bin
+            FROM '{HW}'
+            WHERE headway_obs > 0 AND headway_obs < 3600 AND last_seq > first_seq
+        )
+        SELECT LineNumber, bin, stddev(headway_obs)/avg(headway_obs) AS cv
+        FROM b GROUP BY 1,2
+    """)
+    rising = ["4", "179"]
+
+    panels = [
+        ("4", "rises"), ("179", "rises"), ("116", "flat"),
+        ("607", "flat"), ("474", "flat"), ("541", "flat"),
+        ("117", "steps down mid-route"), ("401", "terminus drop = small sample"),
+    ]
+    fig, axes = plt.subplots(3, 3, figsize=(13, 9.5), sharey=True)
+    for ax, (line, verdict) in zip(axes.flat, panels):
+        sub = per_stop[per_stop.LineNumber == line].sort_values("stop_sequence")
+        med_n = sub.n.median()
+        ok = sub[sub.n >= 0.2 * med_n]
+        low = sub[sub.n < 0.2 * med_n]
+        color = BLUE if line in rising else INK_MUTED
+        ax.plot(ok.stop_sequence, ok.cv, color=color, linewidth=2 if line in rising else 1.6)
+        start, end = ok.cv.head(3).mean(), ok.cv.tail(3).mean()
+        ax.set_title(f"Line {line}: {verdict}  ({start:.2f} → {end:.2f})", fontsize=10,
+                     color=INK, loc="left")
+        for _, r in low.iterrows():
+            # draw the low-sample stop hollow and dashed, so it reads as unreliable
+            prev = ok[ok.stop_sequence < r.stop_sequence].tail(1)
+            if len(prev):
+                ax.plot([prev.stop_sequence.iloc[0], r.stop_sequence], [prev.cv.iloc[0], r.cv],
+                        color=color, linewidth=1.2, linestyle=":")
+            ax.plot(r.stop_sequence, r.cv, "o", markersize=8, markerfacecolor=SURFACE,
+                    markeredgecolor=color, markeredgewidth=1.6)
+            ax.annotate(f"n = {int(r.n):,}\n(vs ~{int(round(med_n, -3)):,} per stop)",
+                        (r.stop_sequence, r.cv), xytext=(-8, 0), textcoords="offset points",
+                        ha="right", va="center", fontsize=8, color=INK_SECONDARY)
+        ax.set_xlabel("stop along the route (stop_sequence)", fontsize=8)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+
+    # pooled panel
+    ax = axes.flat[-1]
+    all_lines = pooled.groupby("bin").cv.mean()
+    without = pooled[~pooled.LineNumber.isin(rising)].groupby("bin").cv.mean()
+    x = (all_lines.index + 0.5) * 10
+    ax.plot(x, all_lines.values, color=INK, linewidth=2, label="all 8 lines")
+    ax.plot(x, without.values, color=INK_MUTED, linewidth=2, linestyle="--",
+            label="without lines 4 and 179")
+    ax.annotate(f"all 8 lines ({all_lines.iloc[0]:.2f} → {all_lines.iloc[-1]:.2f})",
+                (x[-1], all_lines.iloc[-1]), xytext=(0, 8), textcoords="offset points",
+                ha="right", fontsize=8, color=INK)
+    ax.annotate(f"without 4 and 179 ({without.iloc[0]:.2f} → {without.iloc[-1]:.2f})",
+                (x[-1], without.iloc[-1]), xytext=(0, -12), textcoords="offset points",
+                ha="right", va="top", fontsize=8, color=INK_SECONDARY)
+    ax.set_title("Pooled: mild drift, mostly kept without lines 4 and 179", fontsize=10, color=INK, loc="left")
+    ax.set_xlabel("position along the trip (% of stops)", fontsize=8)
+    ax.xaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    ax.legend(fontsize=8, frameon=False, loc="lower left")
+
+    for ax in axes[:, 0]:
+        ax.set_ylabel("headway CV", fontsize=9)
+    axes.flat[0].set_ylim(0.25, 0.70)
+    for ax in axes.flat:
+        ax.tick_params(labelsize=8)
+        ax.grid(axis="x", visible=False)
+    fig.suptitle("Does irregularity grow along the route? On some lines", fontsize=14,
+                 color=INK, x=0.02, ha="left", y=0.99)
+    fig.text(0.02, 0.952, "Headway coefficient of variation per stop. Blue = lines where it rises; "
+             "values in brackets are the mean of the first and last three stops.",
+             fontsize=9, color=INK_SECONDARY, ha="left")
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.savefig("figures/fig19_cv_growth_along_route.png", dpi=200)
+    plt.close(fig)
+    return per_stop, pooled
+
+
 if __name__ == "__main__":
     import os
     os.makedirs("figures", exist_ok=True)
@@ -333,6 +428,7 @@ if __name__ == "__main__":
     print("fig6"); d6, means6 = fig6_dwell_by_stop_type()
     print("fig7"); d7, corr7 = fig7_delay_growth_vs_headway_ratio()
     print("fig10"); d10 = fig10_bunching_along_route()
+    print("fig19"); d19 = fig19_cv_growth_along_route()
     print("done")
     print("fig1 cv range:", d1.cv.min(), d1.cv.max())
     print("fig3 by month:\n", d3)

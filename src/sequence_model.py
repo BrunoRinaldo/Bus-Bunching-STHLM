@@ -16,7 +16,6 @@ import time
 import os
 import duckdb
 import numpy as np
-import pandas as pd
 import keras
 from keras import layers
 from sklearn.metrics import average_precision_score, f1_score, precision_recall_curve, confusion_matrix, brier_score_loss
@@ -114,8 +113,6 @@ def main():
 
         path = f"models/sequence_k{k}.keras"
         model.save(path)
-        if k == 3:
-            model.save("models/best_model.keras")
 
         results[k] = {
             "keras_val": evaluate(model, Xva, y_va),
@@ -123,7 +120,7 @@ def main():
         }
         print(f"k={k} keras test PR-AUC={results[k]['keras_test']['pr_auc']}")
 
-    with open("models/phase5_keras_results.json", "w") as f:
+    with open("data/results/phase5_keras_results.json", "w") as f:
         json.dump(results, f, indent=2)
     print("done")
 

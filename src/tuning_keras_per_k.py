@@ -7,7 +7,7 @@ space, each trained on an 800k-row subsample and selected on the validation
 split. The winner is refit on the full training split and scored on val +
 test.
 
-Resumable: every trial is written to reports/tuning_keras_per_k.json as soon
+Resumable: every trial is written to data/results/tuning_keras_per_k.json as soon
 as it finishes; finished trials and refits are skipped on restart. Random
 configurations and weight initialisation are seeded per k and per trial, so
 a restart regenerates the same configurations. Models go to
@@ -34,7 +34,7 @@ SUB_N = 20_000 if SMOKE else 800_000
 N_RANDOM = 1 if SMOKE else 12
 SEARCH_EPOCHS, SEARCH_PATIENCE = (2, 1) if SMOKE else (10, 2)
 FINAL_EPOCHS, FINAL_PATIENCE = (2, 1) if SMOKE else (15, 3)
-OUT = "reports/tuning_keras_per_k_smoke.json" if SMOKE else "reports/tuning_keras_per_k.json"
+OUT = "data/results/tuning_keras_per_k_smoke.json" if SMOKE else "data/results/tuning_keras_per_k.json"
 MODEL_PREFIX = "models/perk_smoke_" if SMOKE else "models/perk_"
 
 
@@ -55,8 +55,8 @@ def save_state(state):
 def configs_for(k):
     rnd = random.Random(200 + k)
     configs = [dict(tk.BASELINE, name="baseline")]
-    if os.path.exists("reports/tuning_keras.json"):
-        configs.append(dict(json.load(open("reports/tuning_keras.json"))["best"]["cfg"], name="k3_winner"))
+    if os.path.exists("data/results/tuning_keras.json"):
+        configs.append(dict(json.load(open("data/results/tuning_keras.json"))["best"]["cfg"], name="k3_winner"))
     for i in range(N_RANDOM):
         c = {p: rnd.choice(v) for p, v in tk.SPACE.items()}
         c["name"] = f"rs{i}"

@@ -217,7 +217,7 @@ decisions made on `val` (Oct), scored once on `test` (Nov-Dec) - never
 touched before this table. Code: `src/models.py` (logreg + HGB),
 `src/sequence_model.py` (Keras, run under the separate `.venv312`
 environment - see §5.3), `src/compare_models.py` (the figure and this
-table). Full numbers: `reports/results_tables.md`.
+table). Full numbers: `data/results/results_tables.md`.
 
 **All numbers in this section use the original default settings** (and, for
 logistic regression, the original feature set). Hyperparameter tuning and a
@@ -401,11 +401,11 @@ changed almost nothing; the engineered `abs(...)` features gave the gain
 
 Code `src/tuning_per_k.py` (HGB, logistic regression),
 `src/tuning_keras_per_k.py` (Keras, `.venv312`), `run_tuning_per_k.sh`
-(runs both, resumable). Raw logs `reports/tuning_per_k.json`,
-`reports/tuning_keras_per_k.json`. Models `models/perk_hgb_k{k}.joblib`,
+(runs both, resumable). Raw logs `data/results/tuning_per_k.json`,
+`data/results/tuning_keras_per_k.json`. Models `models/perk_hgb_k{k}.joblib`,
 `models/perk_logreg_k{k}.joblib`, `models/perk_sequence_k{k}.keras`.
 Figures, table and curves `src/perk_curves.py`, `src/compare_perk.py`,
-`reports/perk_results_table.md`. Total run time 9.1 h (HGB + logistic
+`data/results/perk_results_table.md`. Total run time 9.1 h (HGB + logistic
 regression 6.2 h, Keras 2.9 h).
 
 Search per horizon, same spaces as §6.2:
@@ -454,8 +454,8 @@ Keras (+0.11 to +0.17 validation PR-AUC on the search subsample) and
 
 ### 6.4 Per-horizon vs. k=3 search: paired bootstrap
 
-Code `src/bootstrap_perk.py`; results `reports/perk_bootstrap.json`,
-`reports/perk_results_table.md`; figure
+Code `src/bootstrap_perk.py`; results `data/results/perk_bootstrap.json`,
+`data/results/perk_results_table.md`; figure
 `figures/fig17_perk_bootstrap_diff.png`.
 
 Both models score the same test rows. The round-1 comparison models are
@@ -544,7 +544,7 @@ further in §6.6.
 The per-horizon search (§6.3-6.4) was followed by a second round for the
 two longest horizons only. Code `src/extra_features.py`,
 `src/feature_screen.py`, `src/tuning_long_k.py`; results
-`reports/feature_screen.json`, `reports/tuning_long_k.json`; models
+`data/results/feature_screen.json`, `data/results/tuning_long_k.json`; models
 `models/long_hgb_k5.joblib`, `models/long_hgb_k8.joblib` (dict with the
 classifier and its feature list). Run time 1.8 h for both horizons.
 

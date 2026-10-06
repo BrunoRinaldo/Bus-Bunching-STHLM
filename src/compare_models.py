@@ -1,7 +1,7 @@
 """Phase 5 headline output: PR-AUC vs horizon, all models + persistence
 baseline, k converted to minutes via the median inter-stop running time
-(63s, computed from headways.parquet). Reads models/phase5_results.json
-(logreg + hgb, from src/models.py) and models/phase5_keras_results.json
+(63s, computed from headways.parquet). Reads data/results/phase5_results.json
+(logreg + hgb, from src/models.py) and data/results/phase5_keras_results.json
 (from src/sequence_model.py, run under .venv312). The persistence baseline
 numbers are hardcoded from the real run reported in
 docs/03_training_split_and_model_choice.md - recomputed here from the
@@ -10,29 +10,10 @@ number copied by hand into a doc.
 """
 import json
 import duckdb
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-BLUE = "#2a78d6"
-ORANGE = "#eb6834"
-AQUA = "#1baf7a"
-YELLOW = "#eda100"
-INK = "#0b0b0b"
-INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"
-GRID = "#e1e0d9"
-BASELINE = "#c3c2b7"
-SURFACE = "#fcfcfb"
+from style import BLUE, ORANGE, AQUA, INK, MUTED
 
-plt.rcParams.update({
-    "font.family": "sans-serif", "text.color": INK,
-    "axes.edgecolor": BASELINE, "axes.labelcolor": INK_SECONDARY,
-    "xtick.color": INK_MUTED, "ytick.color": INK_MUTED,
-    "axes.facecolor": SURFACE, "figure.facecolor": SURFACE,
-    "grid.color": GRID, "grid.linewidth": 0.7, "axes.grid": True,
-    "axes.axisbelow": True, "axes.spines.top": False, "axes.spines.right": False,
-})
 
 HORIZONS = [1, 2, 3, 5, 8]
 MEDIAN_RUN_TIME_S = 63.0
@@ -65,9 +46,9 @@ def persistence_baseline():
 
 
 def main():
-    with open("models/phase5_results.json") as f:
+    with open("data/results/phase5_results.json") as f:
         tab = json.load(f)
-    with open("models/phase5_keras_results.json") as f:
+    with open("data/results/phase5_keras_results.json") as f:
         seq = json.load(f)
     persist = persistence_baseline()
 
@@ -91,7 +72,7 @@ def main():
     ax.plot(minutes, [r["logreg_pr_auc"] for r in rows], color=ORANGE, marker="o", label="logistic regression", linewidth=2)
     ax.plot(minutes, [r["hgb_pr_auc"] for r in rows], color=BLUE, marker="o", label="gradient boosting", linewidth=2)
     ax.plot(minutes, [r["keras_pr_auc"] for r in rows], color=AQUA, marker="o", label="Keras 1D-CNN", linewidth=2)
-    ax.scatter(minutes, [r["persistence_precision"] for r in rows], color=INK_MUTED, marker="x", s=60,
+    ax.scatter(minutes, [r["persistence_precision"] for r in rows], color=MUTED, marker="x", s=60,
                label="persistence baseline (precision, not PR-AUC)", zorder=5)
     ax.set_xlabel("prediction horizon k (stops ahead)")
     ax.set_xticks(HORIZONS)
@@ -103,7 +84,7 @@ def main():
     fig.savefig("figures/fig8_pr_auc_vs_horizon.png", dpi=200)
     plt.close(fig)
 
-    with open("reports/results_tables.md", "w") as f:
+    with open("data/results/results_tables.md", "w") as f:
         f.write("# Phase 5 results table\n\n")
         f.write("Test split (Nov-Dec 2024), all 8 lines pooled. k in stops, minutes via median\n")
         f.write("inter-stop running time (63s). Persistence baseline has no probability\n")

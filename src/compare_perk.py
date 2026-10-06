@@ -1,7 +1,7 @@
 """Figures and table for the per-horizon tuned models (run after perk_curves.py).
 
-Reads reports/tuning_per_k.json, reports/tuning_keras_per_k.json and
-reports/perk_curves.json, plus the k=3-only tuning results behind fig 9
+Reads data/results/tuning_per_k.json, data/results/tuning_keras_per_k.json and
+data/results/perk_curves.json, plus the k=3-only tuning results behind fig 9
 (tuning_stage1/2.json, tuning_keras.json) for comparison. Writes:
   fig11_perk_pr_auc_vs_horizon.png   per-k tuned vs k=3-tuned, PR-AUC by horizon
   fig12_perk_recall_at_p80.png       recall at precision 0.80 by horizon
@@ -10,41 +10,33 @@ reports/perk_curves.json, plus the k=3-only tuning results behind fig 9
   fig15_perk_calibration.png         reliability curves per model and horizon
   fig16_perk_pr_auc_by_line.png      HGB test PR-AUC per line and horizon
   fig17_perk_bootstrap_diff.png      per-k minus k=3-tuned, 95% day-block bootstrap intervals
-  reports/perk_results_table.md
+  data/results/perk_results_table.md
 """
 import json
 import os
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from style import BLUE, ORANGE, AQUA, INK, INK2, MUTED, BASE, SURF
 from compare_models import persistence_baseline
 
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-INK, INK2, MUTED, GRID, BASE, SURF = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
 K_RAMP = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"]  # ordinal blue, k=1 light -> k=8 dark
-plt.rcParams.update({"font.family": "sans-serif", "text.color": INK, "axes.edgecolor": BASE,
-                     "axes.labelcolor": INK2, "xtick.color": MUTED, "ytick.color": MUTED,
-                     "axes.facecolor": SURF, "figure.facecolor": SURF, "grid.color": GRID,
-                     "axes.grid": True, "axes.axisbelow": True,
-                     "axes.spines.top": False, "axes.spines.right": False})
 
 HZ = ["1", "2", "3", "5", "8"]
 MIN = {k: round(int(k) * 63 / 60, 2) for k in HZ}
 MODELS = [("hgb", BLUE, "gradient boosting"), ("keras", AQUA, "Keras sequence model"),
           ("lr", ORANGE, "logistic regression")]
 
-pk = json.load(open("reports/tuning_per_k.json"))
-kk = json.load(open("reports/tuning_keras_per_k.json"))
-cv = json.load(open("reports/perk_curves.json"))
-s1 = json.load(open("reports/tuning_stage1.json"))
-s2 = json.load(open("reports/tuning_stage2.json"))
-kt = json.load(open("reports/tuning_keras.json"))
+pk = json.load(open("data/results/tuning_per_k.json"))
+kk = json.load(open("data/results/tuning_keras_per_k.json"))
+cv = json.load(open("data/results/perk_curves.json"))
+s1 = json.load(open("data/results/tuning_stage1.json"))
+s2 = json.load(open("data/results/tuning_stage2.json"))
+kt = json.load(open("data/results/tuning_keras.json"))
 CURVE_KEY = {"hgb": "hgb", "keras": "keras", "lr": "logreg"}
-bs = json.load(open("reports/perk_bootstrap.json")) if os.path.exists("reports/perk_bootstrap.json") else {}
-lk = json.load(open("reports/tuning_long_k.json")) if os.path.exists("reports/tuning_long_k.json") else {}
+bs = json.load(open("data/results/perk_bootstrap.json")) if os.path.exists("data/results/perk_bootstrap.json") else {}
+lk = json.load(open("data/results/tuning_long_k.json")) if os.path.exists("data/results/tuning_long_k.json") else {}
 LONG = {k[1:]: v["test"] for k, v in lk.items() if "test" in v}  # step-2 search, k=5 and 8 only
 
 
@@ -257,7 +249,7 @@ fig.tight_layout(rect=[0, 0, 1, 0.88])
 save(fig, "fig17_perk_bootstrap_diff")
 
 # table
-with open("reports/perk_results_table.md", "w") as f:
+with open("data/results/perk_results_table.md", "w") as f:
     f.write("# Per-horizon tuned models, test results (Nov-Dec 2024)\n\n")
     f.write("Each horizon has its own search (src/tuning_per_k.py, src/tuning_keras_per_k.py): "
             "800k-row training subsample, selection on the validation split (Oct), winner refit on "
@@ -291,4 +283,4 @@ with open("reports/perk_results_table.md", "w") as f:
                 if b:
                     f.write(f"| {name} | {k} | {b['diff']:+.4f} | [{b['ci95'][0]:+.4f}, {b['ci95'][1]:+.4f}] | "
                             f"{b['r80_diff']:+.4f} | [{b['r80_ci95'][0]:+.4f}, {b['r80_ci95'][1]:+.4f}] |\n")
-print(open("reports/perk_results_table.md").read())
+print(open("data/results/perk_results_table.md").read())

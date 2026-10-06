@@ -27,7 +27,6 @@ import warnings
 
 import joblib
 import numpy as np
-import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
 from sklearn.ensemble import HistGradientBoostingClassifier
@@ -156,7 +155,7 @@ def stage1():
                          "n_iter": int(clf.n_iter_), "fit_s": round(time.time() - t1, 1)})
         print(f"HGB {c['name']}: val PR-AUC={v:.4f} n_iter={clf.n_iter_} ({time.time()-t1:.0f}s) {params}", flush=True)
         out["hgb_search"] = hgb_rows
-        dump(out, "reports/tuning_stage1.json")
+        dump(out, "data/results/tuning_stage1.json")
     best = max(hgb_rows, key=lambda r: r["val_pr_auc"])
     out["hgb_best"] = best
     print("HGB best:", best, flush=True)
@@ -169,7 +168,7 @@ def stage1():
                              "test_recall_at_p80": recall_at_p80(yte, pt), "fit_s": round(time.time() - t1, 1)}
     joblib.dump(clf, f"models/tuned_hgb_k{K}.joblib")
     print("HGB tuned, full data:", out["hgb_final_full"], flush=True)
-    dump(out, "reports/tuning_stage1.json")
+    dump(out, "data/results/tuning_stage1.json")
 
     # ---------------- logistic regression: C sweep + PCA sweep ----------------
     lr_rows = []
@@ -201,13 +200,13 @@ def stage1():
                                 "explained_var": round(float(evr[n - 1]), 4), "n_iter": int(clf.n_iter_[0])})
                 print(f"LR {fs} PCA n={n} C={C}: val={v:.4f} (explained var {evr[n-1]:.3f})", flush=True)
         out["logreg_search"] = lr_rows
-        dump(out, "reports/tuning_stage1.json")
+        dump(out, "data/results/tuning_stage1.json")
         for arm, rows in [(f"{fs}_C", [r for r in lr_rows if r["features"] == fs and r["n_pca"] is None]),
                           (f"{fs}_pca", [r for r in lr_rows if r["features"] == fs and r["n_pca"] is not None])]:
             best_cfg[arm] = max(rows, key=lambda r: r["val_pr_auc"])
         del Zs, Zv, Zs_p, Zv_p
     out["logreg_best_cfg"] = best_cfg
-    dump(out, "reports/tuning_stage1.json")
+    dump(out, "data/results/tuning_stage1.json")
     print("LR best per arm:", best_cfg, flush=True)
 
     # ---------------- logistic regression: refit arms on the FULL train split ----------------
@@ -235,19 +234,19 @@ def stage1():
                                              "fit_s": round(time.time() - t1, 1)}
             print(f"LR final {arm}: {out['logreg_final_full'][arm]}", flush=True)
             joblib.dump({"pre": pre, "pca": pca, "clf": clf, "features": fs}, f"models/tuned_logreg_k{K}_{arm}.joblib")
-            dump(out, "reports/tuning_stage1.json")
+            dump(out, "data/results/tuning_stage1.json")
         del Ztr, Zv, Zt
 
-    with open("models/phase5_results.json") as f:
+    with open("data/results/phase5_results.json") as f:
         p5 = json.load(f)
     out["baseline_reference"] = {"hgb_val": p5[str(K)]["hgb_val"]["pr_auc"], "hgb_test": p5[str(K)]["hgb_test"]["pr_auc"],
                                  "logreg_val": p5[str(K)]["logreg_val"]["pr_auc"], "logreg_test": p5[str(K)]["logreg_test"]["pr_auc"]}
-    dump(out, "reports/tuning_stage1.json")
+    dump(out, "data/results/tuning_stage1.json")
     print("stage1 done", flush=True)
 
 
 def stage2():
-    s1 = json.load(open("reports/tuning_stage1.json"))
+    s1 = json.load(open("data/results/tuning_stage1.json"))
     res = {}
     hgb_params = s1["hgb_best"]["params"]
     lr_final = s1["logreg_final_full"]
@@ -281,7 +280,7 @@ def stage2():
                                             "test_recall_at_p80": recall_at_p80(yte, pt)}
             print(f"k={k} LR {arm}: {res[str(k)][f'logreg_{arm}']}", flush=True)
         print(f"k={k} done in {time.time()-t0:.0f}s", flush=True)
-        dump(res, "reports/tuning_stage2.json")
+        dump(res, "data/results/tuning_stage2.json")
     print("stage2 done", flush=True)
 
 

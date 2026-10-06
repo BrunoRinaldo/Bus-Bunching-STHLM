@@ -36,7 +36,7 @@ def main():
     con.sql("PRAGMA threads=8")
     lines_sql = ", ".join(f"'{l}'" for l in SELECTED_LINES)
     src = (
-        "read_csv('gtfs_rt_2024*.csv.gz', "
+        "read_csv('data/raw/gtfs_rt_2024*.csv.gz', "
         "types={'LineNumber':'VARCHAR','route_id':'VARCHAR'}, union_by_name=true)"
     )
     t0 = time.time()

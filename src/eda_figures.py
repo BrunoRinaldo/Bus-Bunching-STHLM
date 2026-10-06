@@ -11,38 +11,12 @@ distinguishability up to 3 series - past that, fold to facets.
 """
 import duckdb
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
-# --- palette (references/palette.md, light mode) ---
-BLUE = "#2a78d6"
-ORANGE = "#eb6834"
-SEQ_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
-INK = "#0b0b0b"
-INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"
-GRID = "#e1e0d9"
-BASELINE = "#c3c2b7"
-SURFACE = "#fcfcfb"
+from style import BLUE, ORANGE, SEQ_RAMP, INK, INK2, MUTED, GRID, BASE, SURF
 
-plt.rcParams.update({
-    "font.family": "sans-serif",
-    "text.color": INK,
-    "axes.edgecolor": BASELINE,
-    "axes.labelcolor": INK_SECONDARY,
-    "xtick.color": INK_MUTED,
-    "ytick.color": INK_MUTED,
-    "axes.facecolor": SURFACE,
-    "figure.facecolor": SURFACE,
-    "grid.color": GRID,
-    "grid.linewidth": 0.7,
-    "axes.grid": True,
-    "axes.axisbelow": True,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-})
 
 DS = "data/processed/model_dataset.parquet"
 HW = "data/processed/headways.parquet"
@@ -105,7 +79,7 @@ def fig2_bunching_heatmap():
     ax.set_ylabel("line")
     ax.grid(False)
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("% bunched (|headway ratio| < 0.25)", fontsize=9, color=INK_SECONDARY)
+    cbar.set_label("% bunched (|headway ratio| < 0.25)", fontsize=9, color=INK2)
     fig.suptitle("Bunching rate by hour of day and line", fontsize=13, color=INK, x=0.02, ha="left")
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig("figures/fig2_bunching_heatmap_hour_line.png", dpi=200)
@@ -114,7 +88,6 @@ def fig2_bunching_heatmap():
 
 
 def _seq_cmap():
-    from matplotlib.colors import LinearSegmentedColormap
     return LinearSegmentedColormap.from_list("seq_blue", SEQ_RAMP)
 
 
@@ -133,8 +106,8 @@ def fig3_bunching_by_month():
     ax.set_xlabel("month (2024)")
     ax.set_ylabel("% bunched")
     ax.set_xlim(0.5, 12.5)
-    ax.text(1.5, ax.get_ylim()[1]*0.96, "winter", fontsize=8, color=INK_SECONDARY, ha="center")
-    ax.text(7.5, ax.get_ylim()[1]*0.96, "summer", fontsize=8, color=INK_SECONDARY, ha="center")
+    ax.text(1.5, ax.get_ylim()[1]*0.96, "winter", fontsize=8, color=INK2, ha="center")
+    ax.text(7.5, ax.get_ylim()[1]*0.96, "summer", fontsize=8, color=INK2, ha="center")
     fig.suptitle("Bunching rate by month, all 8 lines pooled", fontsize=13, color=INK, x=0.02, ha="left")
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig("figures/fig3_bunching_by_month.png", dpi=200)
@@ -150,8 +123,9 @@ def fig4_spatial_hotspots():
             GROUP BY 1 HAVING count(*) >= 500
         )
         SELECT s.*, st.stop_lat, st.stop_lon, st.stop_name
-        FROM s LEFT JOIN read_csv_auto('stops.csv') st ON s.observed_stop_id = st.stop_id
+        FROM s LEFT JOIN read_csv_auto('data/raw/stops.csv') st ON s.observed_stop_id = st.stop_id
         WHERE st.stop_lat IS NOT NULL
+        ORDER BY s.observed_stop_id  -- fixed draw order for overlapping markers
     """)
     fig, ax = plt.subplots(figsize=(7, 7))
     sc = ax.scatter(d.stop_lon, d.stop_lat, c=d.pct_bunched, cmap=_seq_cmap(),
@@ -160,14 +134,14 @@ def fig4_spatial_hotspots():
     ax.set_ylabel("latitude")
     ax.set_aspect(1.8)
     cbar = fig.colorbar(sc, ax=ax, fraction=0.04, pad=0.03)
-    cbar.set_label("% bunched at this stop", fontsize=9, color=INK_SECONDARY)
+    cbar.set_label("% bunched at this stop", fontsize=9, color=INK2)
     top = d[d.n >= 2000].sort_values("pct_bunched", ascending=False).head(5)
     for rank, (_, r) in enumerate(top.iterrows()):
         ax.annotate(f"{rank+1}", (r.stop_lon, r.stop_lat), fontsize=8, color=INK, fontweight="bold",
                     xytext=(6, 6), textcoords="offset points",
-                    bbox=dict(boxstyle="circle,pad=0.15", fc="white", ec=INK_MUTED, lw=0.6))
+                    bbox=dict(boxstyle="circle,pad=0.15", fc="white", ec=MUTED, lw=0.6))
     fig.suptitle("Bunching hotspots - stop-level bunching rate, 8 selected lines", fontsize=12, color=INK, x=0.02, ha="left")
-    fig.text(0.02, 0.01, "Marker size ~ observation count. Plain lat/lon axes, no basemap.", fontsize=7, color=INK_MUTED)
+    fig.text(0.02, 0.01, "Marker size ~ observation count. Plain lat/lon axes, no basemap.", fontsize=7, color=MUTED)
     fig.tight_layout(rect=[0, 0.02, 1, 0.94])
     fig.savefig("figures/fig4_spatial_hotspots.png", dpi=200)
     plt.close(fig)
@@ -188,12 +162,12 @@ def fig5_headway_ratio_distribution():
         density = sub.n / sub.n.sum() / 0.05
         ax.plot(sub.bucket, density, color=color, linewidth=1.8, label=period)
         ax.fill_between(sub.bucket, density, color=color, alpha=0.12)
-    ax.axvline(0.25, color=INK_MUTED, linestyle="--", linewidth=1)
-    ax.axvline(-0.25, color=INK_MUTED, linestyle="--", linewidth=1)
-    ax.axvline(1.75, color=INK_MUTED, linestyle="--", linewidth=1)
+    ax.axvline(0.25, color=MUTED, linestyle="--", linewidth=1)
+    ax.axvline(-0.25, color=MUTED, linestyle="--", linewidth=1)
+    ax.axvline(1.75, color=MUTED, linestyle="--", linewidth=1)
     ax.axvspan(-0.25, 0.25, color=BLUE, alpha=0.06, zorder=0)
-    ax.text(0.25, ax.get_ylim()[1]*0.9, " bunched zone", fontsize=7, color=INK_SECONDARY)
-    ax.text(1.75, ax.get_ylim()[1]*0.9, " gap >", fontsize=7, color=INK_SECONDARY)
+    ax.text(0.25, ax.get_ylim()[1]*0.9, " bunched zone", fontsize=7, color=INK2)
+    ax.text(1.75, ax.get_ylim()[1]*0.9, " gap >", fontsize=7, color=INK2)
     ax.set_xlabel("headway ratio (observed / scheduled) - negative means the follower overtook its nominal leader")
     ax.set_ylabel("density")
     ax.set_xlim(-1, 3)
@@ -245,14 +219,14 @@ def fig7_delay_growth_vs_headway_ratio():
     fig, ax = plt.subplots(figsize=(8, 5))
     im = ax.imshow(piv.values, origin="lower", aspect="auto", cmap=_seq_cmap(),
                     extent=[piv.columns.min(), piv.columns.max(), piv.index.min(), piv.index.max()],
-                    norm=matplotlib.colors.LogNorm(vmin=1, vmax=piv.values.max()))
+                    norm=LogNorm(vmin=1, vmax=piv.values.max()))
     ax.axvline(0.25, color=INK, linestyle="--", linewidth=1, alpha=0.6)
     ax.axvline(-0.25, color=INK, linestyle="--", linewidth=1, alpha=0.6)
     ax.set_xlabel("headway ratio at stop n (bunched zone: -0.25 to 0.25)")
     ax.set_ylabel("delay growth at stop n (s, dwell-driven)")
     ax.grid(False)
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label("row count (log scale)", fontsize=9, color=INK_SECONDARY)
+    cbar.set_label("row count (log scale)", fontsize=9, color=INK2)
     corr = con.sql(f"""
         SELECT corr(headway_ratio, delay_growth) FROM '{HW}'
         WHERE headway_ratio BETWEEN -1 AND 3 AND delay_growth IS NOT NULL
@@ -284,23 +258,23 @@ def fig10_bunching_along_route():
     ends = []
     for line in LINE_ORDER:
         sub = per_line[per_line.LineNumber == line].sort_values("seg")
-        ax.plot(sub.seg, sub.pct_bunched, color=BASELINE, linewidth=1.2, zorder=2)
+        ax.plot(sub.seg, sub.pct_bunched, color=BASE, linewidth=1.2, zorder=2)
         ends.append([sub.pct_bunched.iloc[-1], line])
     # nudge route-end labels apart so lines ending close together stay legible
     ends.sort()
     for i in range(1, len(ends)):
         ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.2)
     for y, line in ends:
-        ax.text(4.1, y, line, va="center", fontsize=8, color=INK_MUTED)
+        ax.text(4.1, y, line, va="center", fontsize=8, color=MUTED)
     ax.plot(overall.seg, overall.pct_bunched, color=BLUE, linewidth=2.5, zorder=3,
-            marker="o", markersize=8, markeredgecolor=SURFACE, markeredgewidth=2)
+            marker="o", markersize=8, markeredgecolor=SURF, markeredgewidth=2)
     for _, r in overall.iterrows():
         ax.annotate(f"{r.pct_bunched:.1f}%", (r.seg, r.pct_bunched),
                     xytext=(0, 10), textcoords="offset points", ha="center",
                     fontsize=9, color=INK)
     ax.annotate("All lines", (overall.seg.iloc[0], overall.pct_bunched.iloc[0]),
                 xytext=(-10, 0), textcoords="offset points", ha="right", va="center",
-                fontsize=9, color=INK_SECONDARY)
+                fontsize=9, color=INK2)
 
     ax.set_xticks(range(5))
     ax.set_xticklabels(x_labels)
@@ -314,7 +288,7 @@ def fig10_bunching_along_route():
     fig.suptitle(f"Bunching risk grows along the route: {first:.1f}% → {last:.1f}% ({last/first:.1f}×)",
                  fontsize=13, color=INK, x=0.02, y=0.98, ha="left")
     ax.set_title("All lines pooled (blue); individual lines in grey, labelled at route end",
-                 fontsize=9, color=INK_SECONDARY, loc="left")
+                 fontsize=9, color=INK2, loc="left")
     fig.tight_layout()
     fig.subplots_adjust(top=0.88)
     fig.savefig("figures/fig10_bunching_along_route.png", dpi=200)
@@ -362,7 +336,7 @@ def fig19_cv_growth_along_route():
         med_n = sub.n.median()
         ok = sub[sub.n >= 0.2 * med_n]
         low = sub[sub.n < 0.2 * med_n]
-        color = BLUE if line in rising else INK_MUTED
+        color = BLUE if line in rising else MUTED
         ax.plot(ok.stop_sequence, ok.cv, color=color, linewidth=2 if line in rising else 1.6)
         start, end = ok.cv.head(3).mean(), ok.cv.tail(3).mean()
         ax.set_title(f"Line {line}: {verdict}  ({start:.2f} → {end:.2f})", fontsize=10,
@@ -373,11 +347,11 @@ def fig19_cv_growth_along_route():
             if len(prev):
                 ax.plot([prev.stop_sequence.iloc[0], r.stop_sequence], [prev.cv.iloc[0], r.cv],
                         color=color, linewidth=1.2, linestyle=":")
-            ax.plot(r.stop_sequence, r.cv, "o", markersize=8, markerfacecolor=SURFACE,
+            ax.plot(r.stop_sequence, r.cv, "o", markersize=8, markerfacecolor=SURF,
                     markeredgecolor=color, markeredgewidth=1.6)
             ax.annotate(f"n = {int(r.n):,}\n(vs ~{int(round(med_n, -3)):,} per stop)",
                         (r.stop_sequence, r.cv), xytext=(-8, 0), textcoords="offset points",
-                        ha="right", va="center", fontsize=8, color=INK_SECONDARY)
+                        ha="right", va="center", fontsize=8, color=INK2)
         ax.set_xlabel("stop along the route (stop_sequence)", fontsize=8)
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
 
@@ -387,14 +361,14 @@ def fig19_cv_growth_along_route():
     without = pooled[~pooled.LineNumber.isin(rising)].groupby("bin").cv.mean()
     x = (all_lines.index + 0.5) * 10
     ax.plot(x, all_lines.values, color=INK, linewidth=2, label="all 8 lines")
-    ax.plot(x, without.values, color=INK_MUTED, linewidth=2, linestyle="--",
+    ax.plot(x, without.values, color=MUTED, linewidth=2, linestyle="--",
             label="without lines 4 and 179")
     ax.annotate(f"all 8 lines ({all_lines.iloc[0]:.2f} → {all_lines.iloc[-1]:.2f})",
                 (x[-1], all_lines.iloc[-1]), xytext=(0, 8), textcoords="offset points",
                 ha="right", fontsize=8, color=INK)
     ax.annotate(f"without 4 and 179 ({without.iloc[0]:.2f} → {without.iloc[-1]:.2f})",
                 (x[-1], without.iloc[-1]), xytext=(0, -12), textcoords="offset points",
-                ha="right", va="top", fontsize=8, color=INK_SECONDARY)
+                ha="right", va="top", fontsize=8, color=INK2)
     ax.set_title("Pooled: mild drift, mostly kept without lines 4 and 179", fontsize=10, color=INK, loc="left")
     ax.set_xlabel("position along the trip (% of stops)", fontsize=8)
     ax.xaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
@@ -410,7 +384,7 @@ def fig19_cv_growth_along_route():
                  color=INK, x=0.02, ha="left", y=0.99)
     fig.text(0.02, 0.952, "Headway coefficient of variation per stop. Blue = lines where it rises; "
              "values in brackets are the mean of the first and last three stops.",
-             fontsize=9, color=INK_SECONDARY, ha="left")
+             fontsize=9, color=INK2, ha="left")
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig("figures/fig19_cv_growth_along_route.png", dpi=200)
     plt.close(fig)

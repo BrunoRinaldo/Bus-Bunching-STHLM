@@ -9,8 +9,6 @@ touched during training or thresholding).
 import json
 import time
 import duckdb
-import numpy as np
-import pandas as pd
 import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import HistGradientBoostingClassifier
@@ -151,20 +149,7 @@ def main():
         print(f"k={k} logreg test PR-AUC={results[k]['logreg_test']['pr_auc']} "
               f"hgb test PR-AUC={results[k]['hgb_test']['pr_auc']}")
 
-        # feature importance / coefficients for the mechanism story (RQ2)
-        cat_names = list(logreg.named_steps["pre"].named_transformers_["cat"].get_feature_names_out(CATEGORICAL))
-        num_names = NUMERIC + BOOLEAN
-        ind = logreg.named_steps["pre"].named_transformers_["num"].named_steps["impute"].indicator_
-        if ind is not None:
-            num_names = num_names + [f"{NUMERIC[i] if i < len(NUMERIC) else BOOLEAN[i-len(NUMERIC)]}_was_missing" for i in ind.features_]
-        coef = logreg.named_steps["clf"].coef_[0]
-        coef_names = num_names + cat_names
-        coef_df = pd.DataFrame({"feature": coef_names[:len(coef)], "coef": coef})
-        coef_df.to_csv(f"models/logreg_coefs_k{k}.csv", index=False)
-
-        importances = pd.Series(hgb.feature_importances_ if hasattr(hgb, "feature_importances_") else [], dtype=float)
-
-    with open("models/phase5_results.json", "w") as f:
+    with open("data/results/phase5_results.json", "w") as f:
         json.dump(results, f, indent=2)
     print("done")
 

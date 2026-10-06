@@ -13,7 +13,7 @@ Additions against the original: 95% day-block bootstrap intervals for every
 group PR-AUC (B = 1000 over test days) and permutation importance for the
 tuned model (60,000 test rows, PR-AUC, 5 repeats).
 
-Output (aggregates only): reports/diagnostics_tuned.json.
+Output (aggregates only): data/results/diagnostics_tuned.json.
 Usage: .venv/bin/python src/diagnostics_tuned.py
 """
 import json
@@ -31,9 +31,12 @@ from sklearn.utils.class_weight import compute_sample_weight
 import models as m
 import tuning as t
 from bootstrap_perk import metrics_weighted, prepare
-from diagnostics import DELAY_FEATURES, DWELL_FEATURES, LEADER_FEATURES
 
-OUT = "reports/diagnostics_tuned.json"
+OUT = "data/results/diagnostics_tuned.json"
+DELAY_FEATURES = ["observed_arrival_delay", "observed_departure_delay",
+                  "leader_arrival_delay", "leader_delay_growth", "cum_delay_growth_3"]
+DWELL_FEATURES = ["dwell", "dwell_rel_median", "leader_dwell"]
+LEADER_FEATURES = ["leader_dwell", "leader_arrival_delay", "leader_delay_growth"]
 B = 1000
 TRAIN_LINES = ["4", "541", "474", "607"]
 HELDOUT_LINES = ["116", "117", "179", "401"]
@@ -43,11 +46,11 @@ con.sql("PRAGMA threads=8")
 
 def config(k):
     if k == 3:
-        params = json.load(open("reports/tuning_stage1.json"))["hgb_best"]["params"]
+        params = json.load(open("data/results/tuning_stage1.json"))["hgb_best"]["params"]
         return {"model": joblib.load("models/tuned_hgb_k3.joblib"), "features": list(m.ALL_COLS),
                 "params": params, "early_stopping": "internal 10% of training rows",
                 "source": "models/tuned_hgb_k3.joblib"}
-    lk = json.load(open("reports/tuning_long_k.json"))[f"k{k}"]
+    lk = json.load(open("data/results/tuning_long_k.json"))[f"k{k}"]
     params = next(r for r in lk["refits"] if r["name"] == lk["chosen"])["params"]
     obj = joblib.load(f"models/long_hgb_k{k}.joblib")
     return {"model": obj["clf"], "features": obj["features"], "params": params,

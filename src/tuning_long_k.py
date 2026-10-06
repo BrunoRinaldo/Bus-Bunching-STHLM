@@ -9,13 +9,13 @@ Changes against src/tuning_per_k.py (docs/03 §6.4):
   - the top REFIT_N configurations are refit on the full training split and
     the choice is made on those refits, not on the subsample
   - feature set per horizon = the best set on validation in
-    reports/feature_screen.json, if it beats the current features by at
+    data/results/feature_screen.json, if it beats the current features by at
     least MIN_GAIN; otherwise the current features
 The test split is scored once, for the chosen refit, and compared with the
 current model (models/perk_hgb_k{k}.joblib) by the paired day-block
 bootstrap from src/bootstrap_perk.py.
 
-Resumable: every trial and refit is written to reports/tuning_long_k.json.
+Resumable: every trial and refit is written to data/results/tuning_long_k.json.
 Models: models/long_hgb_k{k}.joblib.
 
 Usage: .venv/bin/python src/tuning_long_k.py [--smoke]
@@ -45,7 +45,7 @@ N_RANDOM = 1 if SMOKE else 16
 REFIT_N = 1 if SMOKE else 3
 MIN_GAIN = 0.005  # a feature set must beat the current one by this much on validation
 MAX_ITER = 50 if SMOKE else 3000
-OUT = "reports/tuning_long_k_smoke.json" if SMOKE else "reports/tuning_long_k.json"
+OUT = "data/results/tuning_long_k_smoke.json" if SMOKE else "data/results/tuning_long_k.json"
 MODEL_PREFIX = "models/long_smoke_" if SMOKE else "models/long_"
 SPACE = dict(learning_rate=[0.02, 0.03, 0.05], max_leaf_nodes=[127, 255, 511, 1023],
              min_samples_leaf=[50, 100, 200, 500], l2_regularization=[0.0, 1.0, 10.0],
@@ -60,7 +60,7 @@ def save(state):
 
 
 def feature_set(k):
-    sets = json.load(open("reports/feature_screen.json"))[str(k)]["sets"]
+    sets = json.load(open("data/results/feature_screen.json"))[str(k)]["sets"]
     name = max(sets, key=lambda s: sets[s]["val_pr_auc"])
     if sets[name]["val_pr_auc"] - sets["current"]["val_pr_auc"] < MIN_GAIN:
         name = "current"
@@ -96,7 +96,7 @@ def configs(k, prev):
 
 def main():
     state = json.load(open(OUT)) if os.path.exists(OUT) else {}
-    pk = json.load(open("reports/tuning_per_k.json"))
+    pk = json.load(open("data/results/tuning_per_k.json"))
     for k in HORIZONS:
         S = state.setdefault(f"k{k}", {})
         if "test" in S:

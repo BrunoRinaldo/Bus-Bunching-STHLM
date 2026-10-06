@@ -12,7 +12,7 @@ Comparison models (the fig 9 setup, searched at k=3 and reused elsewhere):
   LogReg  engineered features + PCA 45 + C=0.1, as in tuning.py stage2
   Keras   models/tuned_sequence_k{k}.keras
 The refits reproduce the stage-2 test PR-AUC exactly (seeded); this is
-asserted. Only aggregates are written, to reports/perk_bootstrap.json.
+asserted. Only aggregates are written, to data/results/perk_bootstrap.json.
 
   .venv/bin/python    src/bootstrap_perk.py          HGB + logistic regression
   .venv312/bin/python src/bootstrap_perk.py --keras  Keras
@@ -28,7 +28,7 @@ from sklearn.metrics import average_precision_score
 
 HORIZONS = [1, 2, 3, 5, 8]
 B = 1000
-OUT = "reports/perk_bootstrap.json"
+OUT = "data/results/perk_bootstrap.json"
 con = duckdb.connect()
 
 
@@ -55,6 +55,19 @@ def prepare(p):
     last = np.ones(len(ps), dtype=bool)
     last[:-1] = ps[1:] != ps[:-1]
     return order, last
+
+
+def recall_at_precision(y, p, target):
+    """Highest-recall threshold with precision >= target, cutting only between distinct scores."""
+    order, last = prepare(p)
+    tp = np.cumsum(y[order])
+    prec = tp / np.arange(1, len(tp) + 1)
+    ok = np.nonzero((prec >= target) & last)[0]
+    if not len(ok):
+        return None
+    i = int(ok.max())
+    return {"recall": round(float(tp[i]) / int(y.sum()), 4), "precision": round(float(prec[i]), 4),
+            "threshold": round(float(p[order][i]), 4)}
 
 
 def paired_bootstrap(y, p_new, p_old, dates):
@@ -87,8 +100,8 @@ def tabular(res):
     import models as m
     import tuning as t
 
-    s1 = json.load(open("reports/tuning_stage1.json"))
-    s2 = json.load(open("reports/tuning_stage2.json"))
+    s1 = json.load(open("data/results/tuning_stage1.json"))
+    s2 = json.load(open("data/results/tuning_stage2.json"))
     lr_cfg = s1["logreg_best_cfg"]["eng_pca"]
     for k in HORIZONS:
         t0 = time.time()

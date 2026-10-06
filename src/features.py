@@ -59,7 +59,7 @@ with_grid AS (
         (st.parent_station IS NOT NULL) AS has_parent_station,
         ((f.event_ts_arr AT TIME ZONE 'Europe/Stockholm') AT TIME ZONE 'UTC') AS ts_utc_raw
     FROM features f
-    LEFT JOIN read_csv_auto('stops.csv') st ON f.observed_stop_id = st.stop_id
+    LEFT JOIN read_csv_auto('data/raw/stops.csv') st ON f.observed_stop_id = st.stop_id
 ),
 with_wx AS (
     SELECT w.*, wx.temperature_2m, wx.precipitation, wx.is_precip, wx.precip_3h,
@@ -73,7 +73,7 @@ with_stop_attrs AS (
     SELECT ww.*,
         coalesce(src.n_routes_serving, 1) AS n_routes_serving,
         EXISTS (
-            SELECT 1 FROM read_csv_auto('transfers.csv') t
+            SELECT 1 FROM read_csv_auto('data/raw/transfers.csv') t
             WHERE t.from_stop_id = ww.observed_stop_id OR t.to_stop_id = ww.observed_stop_id
         ) AS is_interchange
     FROM with_wx ww
@@ -83,7 +83,7 @@ with_stop_attrs AS (
 with_alerts AS (
     SELECT wsa.*,
         EXISTS (
-            SELECT 1 FROM 'service_alerts_2024.parquet' a
+            SELECT 1 FROM 'data/raw/service_alerts_2024.parquet' a
             WHERE a.stop_id = wsa.observed_stop_id
               AND wsa.event_ts_arr BETWEEN a.start AND a."end"
         ) AS under_active_alert

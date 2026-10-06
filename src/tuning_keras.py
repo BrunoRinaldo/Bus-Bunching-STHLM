@@ -97,7 +97,7 @@ def main():
         rows.append({"name": c["name"], "cfg": cfg, "val_pr_auc": round(v, 4), "fit_s": round(time.time() - t0, 1)})
         print(f"Keras {c['name']}: val PR-AUC={v:.4f} ({time.time()-t0:.0f}s) {cfg}", flush=True)
         res["search"] = rows
-        json.dump(res, open("reports/tuning_keras.json", "w"), indent=2)
+        json.dump(res, open("data/results/tuning_keras.json", "w"), indent=2)
     best = max(rows, key=lambda r: r["val_pr_auc"])
     res["best"] = best
     print("Keras best:", best, flush=True)
@@ -113,7 +113,7 @@ def main():
                                 "fit_s": round(time.time() - t0, 1)}
         print(f"k={k} tuned Keras: val={res['final'][str(k)]['keras_val']['pr_auc']} "
               f"test={res['final'][str(k)]['keras_test']['pr_auc']}", flush=True)
-        json.dump(res, open("reports/tuning_keras.json", "w"), indent=2, default=float)
+        json.dump(res, open("data/results/tuning_keras.json", "w"), indent=2, default=float)
     print("keras tuning done", flush=True)
 
 

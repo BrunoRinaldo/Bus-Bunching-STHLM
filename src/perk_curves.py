@@ -1,7 +1,7 @@
 """Test-split curves for the per-horizon tuned models (models/perk_*).
 
 Scores the test split (Nov-Dec) with every per-k model and stores only
-aggregates in reports/perk_curves.json: the PR curve sampled at fixed recall
+aggregates in data/results/perk_curves.json: the PR curve sampled at fixed recall
 levels, a 10-bin reliability curve, and (tabular models) PR-AUC per line.
 Nothing row-level is written, so the output can be shared.
 
@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.metrics import average_precision_score, precision_recall_curve
 
 HORIZONS = [1, 2, 3, 5, 8]
-OUT = "reports/perk_curves.json"
+OUT = "data/results/perk_curves.json"
 RECALL_GRID = np.round(np.linspace(0, 1, 101), 2)
 N_BINS = 10
 

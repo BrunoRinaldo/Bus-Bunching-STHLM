@@ -1,14 +1,14 @@
 """Step 3 screening: which candidate feature groups help HGB at k=5 and k=8?
 
 For each horizon, a fixed HGB configuration (the per-horizon winner from
-reports/tuning_per_k.json) is fit on the same 800k-row training subsample
+data/results/tuning_per_k.json) is fit on the same 800k-row training subsample
 with each feature set, early-stopped on the validation split (Oct), and
 scored on the validation split. The test split is not touched here.
 
 Feature sets: current features; minus month_of_year (train has months 1-9,
 val 10 and test 11-12, so the model never sees the test months); then
 minus month plus each group from src/extra_features.py, and plus all groups.
-Results: reports/feature_screen.json.
+Results: data/results/feature_screen.json.
 
 Usage: .venv/bin/python src/feature_screen.py
 """
@@ -26,7 +26,7 @@ from extra_features import GROUPS, OUT as EXTRA
 
 HORIZONS = [5, 8]
 SUB_N = 800_000
-OUT = "reports/feature_screen.json"
+OUT = "data/results/feature_screen.json"
 EXTRA_COLS = [c for g in GROUPS.values() for c in g]
 con = duckdb.connect()
 con.sql("PRAGMA threads=8")
@@ -62,7 +62,7 @@ def fit_score(cols, tr, ytr, va, yva, params):
 
 
 def main():
-    pk = json.load(open("reports/tuning_per_k.json"))
+    pk = json.load(open("data/results/tuning_per_k.json"))
     res = {}
     for k in HORIZONS:
         t0 = time.time()

@@ -15,7 +15,7 @@ Logistic regression, per k: the engineered feature set only (tuning.py
 showed the base set is clearly worse), C sweep without PCA plus a PCA(n) x C
 grid; the single best by validation PR-AUC is refit on full data.
 
-Resumable: every trial is written to reports/tuning_per_k.json as soon as it
+Resumable: every trial is written to data/results/tuning_per_k.json as soon as it
 finishes, and on restart finished trials and finished refits are skipped.
 Random configurations are seeded per k, so a restart regenerates the same
 ones. Models go to models/perk_*.joblib and do not overwrite the k=3-only
@@ -49,7 +49,7 @@ N_NEIGHBOURS = 1 if SMOKE else 8
 LR_C = [0.1, 1.0] if SMOKE else [0.01, 0.1, 1.0, 10.0]
 LR_PCA_N = [10] if SMOKE else [20, 30, 45, 60]
 LR_PCA_C = [1.0] if SMOKE else [0.1, 1.0]
-OUT = "reports/tuning_per_k_smoke.json" if SMOKE else "reports/tuning_per_k.json"
+OUT = "data/results/tuning_per_k_smoke.json" if SMOKE else "data/results/tuning_per_k.json"
 MODEL_PREFIX = "models/perk_smoke_" if SMOKE else "models/perk_"
 HGB_MAX_ITER = 800  # early stopping ends most fits well before this
 
@@ -74,7 +74,7 @@ def save_state(state):
 def round1_configs(k):
     rnd = random.Random(100 + k)
     configs = [dict(t.BASELINE_HGB, name="baseline")]
-    s1_path = "reports/tuning_stage1.json"
+    s1_path = "data/results/tuning_stage1.json"
     if os.path.exists(s1_path):
         prev = dict(json.load(open(s1_path))["hgb_best"]["params"])
         prev["max_iter"] = HGB_MAX_ITER

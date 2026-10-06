@@ -31,7 +31,7 @@ def get_grid_points(con):
     rows = con.sql("""
         WITH s AS (SELECT DISTINCT observed_stop_id FROM 'data/processed/headways.parquet')
         SELECT DISTINCT round(st.stop_lat,1) grid_lat, round(st.stop_lon,1) grid_lon
-        FROM s LEFT JOIN read_csv_auto('stops.csv') st ON s.observed_stop_id = st.stop_id
+        FROM s LEFT JOIN read_csv_auto('data/raw/stops.csv') st ON s.observed_stop_id = st.stop_id
         ORDER BY 1,2
     """).fetchall()
     return rows

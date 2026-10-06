@@ -8,18 +8,17 @@ together) and per correct alarm. Best model per k (docs/03 §6.4, §6.6):
   k=1, 2  models/perk_hgb_k{k}.joblib
   k=3     models/tuned_hgb_k3.joblib
   k=5, 8  models/long_hgb_k{k}.joblib
-Output: reports/false_alarms.json, figures/fig18_recall_at_precision_vs_horizon.png.
+Output: data/results/false_alarms.json, figures/fig18_recall_at_precision_vs_horizon.png.
 """
 import json
 import sys
 
 import joblib
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import average_precision_score
 
+from style import INK2
 import models as m
 from feature_screen import load
 
@@ -28,12 +27,6 @@ RECALLS = [0.5, 0.7, 0.8]
 PRECISIONS = [0.9, 0.8, 0.7]
 MIN = {k: round(k * 63 / 60, 2) for k in HZ}
 BLUE_RAMP = ["#86b6ef", "#3987e5", "#1c5cab"]  # strictest operating point light -> most permissive dark
-INK, INK2, MUTED, GRID, BASE, SURF = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
-plt.rcParams.update({"font.family": "sans-serif", "text.color": INK, "axes.edgecolor": BASE,
-                     "axes.labelcolor": INK2, "xtick.color": MUTED, "ytick.color": MUTED,
-                     "axes.facecolor": SURF, "figure.facecolor": SURF, "grid.color": GRID,
-                     "axes.grid": True, "axes.axisbelow": True,
-                     "axes.spines.top": False, "axes.spines.right": False})
 
 
 def best_model(k):
@@ -68,7 +61,7 @@ def plot(res):
 
 def main():
     if "--plot" in sys.argv:
-        plot(json.load(open("reports/false_alarms.json")))
+        plot(json.load(open("data/results/false_alarms.json")))
         return
     res = {}
     for k in HZ:
@@ -101,11 +94,11 @@ def main():
         res[str(k)] = r
         print(k, r["pr_auc"], {q: (v["false_alarms_per_day"], v["false_per_true_alarm"]) for q, v in r["at_recall"].items()},
               flush=True)
-    with open("reports/false_alarms.json", "w") as f:
+    with open("data/results/false_alarms.json", "w") as f:
         json.dump(res, f, indent=1)
 
     plot(res)
-    print("-> reports/false_alarms.json, figures/fig18_recall_at_precision_vs_horizon.png")
+    print("-> data/results/false_alarms.json, figures/fig18_recall_at_precision_vs_horizon.png")
 
 
 if __name__ == "__main__":

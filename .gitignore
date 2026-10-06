@@ -9,28 +9,21 @@ __pycache__/
 .DS_Store
 .claude/
 
-# Raw input data you provide yourself (place in the repo root, see README)
-gtfs_rt_*.csv.gz
-routes.csv
-stops.csv
-stop_times.csv
-transfers.csv
-trips.csv
-service_alerts_2024.parquet
-
-# Processed datasets - derived from the raw data, never committed
+# Data: raw input, processed tables and results - never committed.
+# Only the folder skeleton is tracked.
+data/*
+!data/raw/
+!data/processed/
+!data/results/
+data/raw/*
 data/processed/*
-!data/processed/.gitkeep
-
-# Contains real example rows from the dataset
-reports/data_dictionary.pdf
+data/results/*
+!data/*/.gitkeep
 
 # Run logs
 logs/
 
-# Smoke-test outputs of the per-horizon tuning
-reports/*_smoke.json
-reports/*.tmp
+# Intermediate outputs of the tuning searches
 models/perk_smoke_*
 models/long_smoke_*
 models/long_hgb_k*_*.joblib

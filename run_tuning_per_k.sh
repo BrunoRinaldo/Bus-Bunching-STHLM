@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Overnight per-horizon tuning: HGB + logistic regression (.venv), then Keras (.venv312).
 # Keeps the Mac awake while running (caffeinate), logs to logs/. Safe to re-run:
-# both scripts resume from their reports/*.json and skip finished work.
+# both scripts resume from their data/results/*.json and skip finished work.
 #
 #   ./run_tuning_per_k.sh           full run (~7-8 h)
 #   ./run_tuning_per_k.sh --smoke   quick end-to-end check (a few minutes)
